@@ -31,6 +31,7 @@ export async function sendMessage(threadId: string, content: { text: string; url
 
     const messages: any[] = [systemInstruction, ...historyMessages];
 
+    // 4. Send messages to OpenAI
     const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages,
@@ -39,7 +40,7 @@ export async function sendMessage(threadId: string, content: { text: string; url
     const message = completion.choices[0].message;
     console.log('Response:', message);
 
-    // 4. Add assistant message to the database
+    // 5. Add assistant message to the database
     await createMessage({
         thread_id: threadId,
         role: 'assistant',

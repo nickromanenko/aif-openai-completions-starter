@@ -49,3 +49,12 @@ export async function sendMessage(threadId: string, content: { text: string; url
 
     return { content: message.content };
 }
+
+export async function embed(input: string) {
+    const response = await openai.embeddings.create({
+        input,
+        model: 'text-embedding-3-small',
+    });
+
+    return response.data;
+}

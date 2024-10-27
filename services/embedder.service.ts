@@ -11,5 +11,6 @@ export async function upsertToIndex(data: any[]) {
 }
 
 export async function searchIndex(vector: number[]) {
+    console.log('Searching index with vector:', vector);
     return await index.query({ vector, topK: 3, includeMetadata: true });
 }

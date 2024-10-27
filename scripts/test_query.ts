@@ -7,7 +7,7 @@ async function main() {
 
     const vector = embeddingResult[0].embedding;
 
-    const matches = (await searchIndex(vector)).matches;
+    const matches = (await searchIndex(vector)).matches.filter(match => match.score > 0.5);
 
     for (const match of matches) {
         console.log(match.metadata.content);

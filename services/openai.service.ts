@@ -9,7 +9,26 @@ const systemInstruction = {
     role: 'system',
     content: instructions,
 };
-
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+    {
+        type: 'function',
+        function: {
+            name: 'getContext',
+            description: "Always retrieve relevant context to answer a user's IT/software related question",
+            parameters: {
+                type: 'object',
+                properties: {
+                    question: {
+                        type: 'string',
+                        description: "The user's question is about IT or software and requires additional context.",
+                    },
+                },
+                required: ['question'],
+                additionalProperties: false,
+            },
+        },
+    },
+];
 export async function sendMessage(threadId: string, content: { text: string; url?: string }) {
     console.log('sendMessage', threadId, JSON.stringify(content));
 
@@ -32,18 +51,18 @@ export async function sendMessage(threadId: string, content: { text: string; url
 
     // 4. Get relevant documents from vector database
     const query = content.text;
-    const embeddingResult = await embed(query);
-    const vector = embeddingResult[0].embedding;
+    // const embeddingResult = await embed(query);
+    // const vector = embeddingResult[0].embedding;
 
-    const matches = (await searchIndex(vector)).matches.filter(match => match.score > 0.4);
+    // const matches = (await searchIndex(vector)).matches.filter(match => match.score > 0.4);
     let text = query;
-    if (matches.length) {
-        console.log('Found matches:', matches.length);
-        const context = matches.map(match => match.metadata.content).join('\n\n');
-        text = `Use the following information to answer the question.\n\nContext:\n${context}\n\nQuestion:\n${query}\n\nAnswer:`;
-    } else {
-        console.log('No matches found');
-    }
+    // if (matches.length) {
+    //     console.log('Found matches:', matches.length);
+    //     const context = matches.map(match => match.metadata.content).join('\n\n');
+    //     text = `Use the following information to answer the question.\n\nContext:\n${context}\n\nQuestion:\n${query}\n\nAnswer:`;
+    // } else {
+    //     console.log('No matches found');
+    // }
     historyMessages.push({
         role: 'user',
         content: text,
@@ -54,19 +73,59 @@ export async function sendMessage(threadId: string, content: { text: string; url
     const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages,
+        tools,
+        tool_choice: 'auto',
     });
+    // console.log(completion);
 
     const message = completion.choices[0].message;
     console.log('Response:', message);
+
+    let responseContent = message.content;
+    if (message.tool_calls && message.tool_calls.length) {
+        for (const toolCall of message.tool_calls) {
+            messages.push(message);
+
+            if (toolCall.function.name === 'getContext') {
+                const functionArgs = JSON.parse(toolCall.function.arguments || '{}');
+                const embeddingResult = await embed(functionArgs.question);
+                const vector = embeddingResult[0].embedding;
+                const matches = (await searchIndex(vector)).matches.filter(match => match.score > 0.4);
+                if (matches.length) {
+                    console.log('Found matches:', matches.length);
+                    const context = matches.map(match => match.metadata.content).join('\n\n');
+                    // text = `Use the following information to answer the question.\n\nContext:\n${context}\n\nQuestion:\n${query}\n\nAnswer:`;
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: context,
+                    });
+                } else {
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: 'No relevant context found.',
+                    });
+                }
+            }
+        }
+
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages,
+        });
+        console.log('SECOND RESPONSE:', completion.choices[0].message);
+        responseContent = completion.choices[0].message.content;
+    }
 
     // 5. Add assistant message to the database
     await createMessage({
         thread_id: threadId,
         role: 'assistant',
-        content: message.content,
+        content: responseContent,
     });
 
-    return { content: message.content };
+    return { content: responseContent };
 }
 
 export async function embed(input: string) {

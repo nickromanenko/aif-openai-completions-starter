@@ -3,7 +3,6 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
-import { connectDb } from './services/db.service';
 import { sendMessage } from './services/openai.service';
 import { errorHandler } from './utils/error-handler';
 
@@ -34,11 +33,6 @@ app.post('/chat', [body('message').notEmpty(), body('thread_id').notEmpty()], as
 });
 
 app.use(errorHandler);
-
-connectDb().catch(error => {
-    console.error(error);
-    process.exit(1);
-});
 
 app.listen(port, () => {
     console.log(`🚀 Server is running on port ${port}`);

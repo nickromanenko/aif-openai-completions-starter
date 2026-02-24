@@ -6,19 +6,40 @@ const systemInstruction = {
     role: 'system',
     content: instructions,
 };
-
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+    {
+        type: 'function',
+        function: {
+            name: 'getContext',
+            description: "Always retrieve relevant context to answer a user's IT/software related question",
+            parameters: {
+                type: 'object',
+                properties: {
+                    question: {
+                        type: 'string',
+                        description: "The user's question is about IT or software and requires additional context.",
+                    },
+                },
+                required: ['question'],
+                additionalProperties: false,
+            },
+        },
+    },
+];
 export async function sendMessage(threadId: string, content: { text: string; url?: string }) {
     console.log('sendMessage', threadId, JSON.stringify(content));
-
     const messages: any[] = [systemInstruction];
 
+    // 4. Send messages to OpenAI
     const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages,
+        tools,
+        tool_choice: 'auto',
     });
+    // console.log(completion);
 
     const message = completion.choices[0].message;
     console.log('Response:', message);
-
     return { content: message.content };
 }
